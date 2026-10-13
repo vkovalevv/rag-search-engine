@@ -112,9 +112,13 @@ class InvertedIndex:
         with open(os.path.abspath(TF_CACHE), mode="wb") as tf_file:
             dump(self.term_frequencies, tf_file)
 
-    def get_tf(self, doc_id, term) -> int:
+    def get_tf(self, doc_id:int, term: str) -> int:
         return self.term_frequencies[doc_id].get(term,0)
-    
+
+    def get_idf(self, term: str):
+        total_doc_count = len(self.docmap)
+        term_match_doc_count = len(self.get_documents(term))
+        return math.log((total_doc_count+1)/(term_match_doc_count+1))
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -131,6 +135,11 @@ def main() -> None:
 
     idf_parser = subparsers.add_parser("idf")
     idf_parser.add_argument("term", type=str)
+
+    tfidf_parser = subparsers.add_parser("tfidf")
+    tfidf_parser.add_argument("document_id", type=int)
+    tfidf_parser.add_argument("term", type=str)
+
 
     movies = load_movies(MOVIE_ADDRESS)
     stop_words = load_stop_words(STOPWORDS_ADDRESS)
@@ -174,6 +183,14 @@ def main() -> None:
             print(term_match_doc_count)
             idf = math.log((total_doc_count+1)/(term_match_doc_count+1))
             print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
+        case "tfidf":
+            inverted_index.load()
+            document_id = args.document_id
+            term = tokenize_term(args.term, stop_words)
+            tf = inverted_index.get_tf(doc_id=document_id, term=term)
+            idf = inverted_index.get_idf(term=term)
+            tf_idf = tf * idf
+            print(f"TF-IDF score of '{term}' in document '{document_id}': {tf_idf:.2f}")
         case "build":
             inverted_index.build()
             inverted_index.save()
