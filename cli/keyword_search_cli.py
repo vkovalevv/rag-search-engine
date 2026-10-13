@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import string
+import math
 
 from pickle import dump, load
 from collections import defaultdict, Counter
@@ -19,7 +20,7 @@ stemmer = PorterStemmer()
 
 def remove_stop_words(query_tokens: list[str]):
     with open(os.path.abspath(STOPWORDS_ADDRESS)) as f:
-        stop_words = f.read().splitlines()
+        stop_words = set(f.read().splitlines())
     result_tokens = [] 
     for token in query_tokens:
         if token in stop_words:
@@ -59,7 +60,7 @@ def load_movies(file_path: str):
 
 class InvertedIndex:
     def __init__(self) -> None:
-        self.index: dict[str, list[int]] = defaultdict(list)
+        self.index: dict[str, set[int]] = defaultdict(set)
         self.docmap: dict[int, dict] = {}
         self.term_frequencies: dict[int, Counter] = {}
 
@@ -68,7 +69,7 @@ class InvertedIndex:
         document_tf = Counter()
 
         for token in tokens:
-            self.index[token].append(doc_id)
+            self.index[token].add(doc_id)
             document_tf[token] += 1
 
         self.term_frequencies[doc_id] = document_tf
@@ -124,6 +125,9 @@ def main() -> None:
     tf_parser.add_argument("document_id", type=int)
     tf_parser.add_argument("term", type=str)
 
+    idf_parser = subparsers.add_parser("idf")
+    idf_parser.add_argument("term", type=str)
+
     movies = load_movies(MOVIE_ADDRESS)
 
     inverted_index = InvertedIndex()
@@ -155,6 +159,15 @@ def main() -> None:
             term = tokenize_term(args.term)
             term_freq = inverted_index.get_tf(document_id, term)
             print(f"{term_freq}")
+        case "idf":
+            inverted_index.load()
+            term = tokenize_term(args.term)
+            total_doc_count = len(inverted_index.docmap)
+            print(total_doc_count)
+            term_match_doc_count = len(inverted_index.get_documents(term))
+            print(term_match_doc_count)
+            idf = math.log((total_doc_count+1)/(term_match_doc_count+1))
+            print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
         case "build":
             inverted_index.build()
             inverted_index.save()
