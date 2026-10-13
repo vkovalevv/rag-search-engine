@@ -119,6 +119,43 @@ class InvertedIndex:
         total_doc_count = len(self.docmap)
         term_match_doc_count = len(self.get_documents(term))
         return math.log((total_doc_count+1)/(term_match_doc_count+1))
+
+    def get_bm25_idf(self, term: str) -> float:
+        N = len(self.docmap)
+        df = len(self.get_documents(term))
+        bm_idf = math.log((N-df+0.5)/(df+0.5)+1)
+        return bm_idf
+
+def tf_command(document_id: int, term: str, inverted_index: InvertedIndex, stop_words: set[str]) -> float:
+    inverted_index.load()
+    term = tokenize_term(term, stop_words)
+    term_freq = inverted_index.get_tf(document_id, term)
+    return term_freq
+
+def idf_command(term:str, inverted_index: InvertedIndex, stop_words: set[str]) -> float:
+    inverted_index.load()
+    term = tokenize_term(term, stop_words)
+    total_doc_count = len(inverted_index.docmap)
+    term_match_doc_count = len(inverted_index.get_documents(term))
+    idf = math.log((total_doc_count+1)/(term_match_doc_count+1))
+    return idf
+
+def tf_idf_command(document_id: int, term:str, inverted_index: InvertedIndex, stop_words: set[str]) -> float:
+    inverted_index.load()
+    term = tokenize_term(term, stop_words)
+    tf = inverted_index.get_tf(doc_id=document_id, term=term)
+    idf = inverted_index.get_idf(term=term)
+    tf_idf = tf * idf
+    return tf_idf
+
+
+def bm25_idf_command(term:str, inverted_index: InvertedIndex, stop_words: set[str]) -> float: 
+    inverted_index.load()
+    term = tokenize_term(term, stop_words)
+    bm25idf = inverted_index.get_bm25_idf(term)
+    return bm25idf
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -140,6 +177,9 @@ def main() -> None:
     tfidf_parser.add_argument("document_id", type=int)
     tfidf_parser.add_argument("term", type=str)
 
+    bm25_idf_parser = subparsers.add_parser(
+    "bm25idf", help="Get BM25 IDF score for a given term")
+    bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
 
     movies = load_movies(MOVIE_ADDRESS)
     stop_words = load_stop_words(STOPWORDS_ADDRESS)
@@ -171,26 +211,22 @@ def main() -> None:
         case "tf":
             inverted_index.load()
             document_id = args.document_id
-            term = tokenize_term(args.term, stop_words)
-            term_freq = inverted_index.get_tf(document_id, term)
+            term = args.term
+            term_freq = tf_command(document_id,term, inverted_index, stop_words)
             print(f"{term_freq}")
         case "idf":
-            inverted_index.load()
-            term = tokenize_term(args.term, stop_words)
-            total_doc_count = len(inverted_index.docmap)
-            print(total_doc_count)
-            term_match_doc_count = len(inverted_index.get_documents(term))
-            print(term_match_doc_count)
-            idf = math.log((total_doc_count+1)/(term_match_doc_count+1))
-            print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
+            term = args.term
+            idf = idf_command(term, inverted_index, stop_words)
+            print(f"Inverse document frequency of '{term}': {idf:.2f}")
         case "tfidf":
-            inverted_index.load()
             document_id = args.document_id
-            term = tokenize_term(args.term, stop_words)
-            tf = inverted_index.get_tf(doc_id=document_id, term=term)
-            idf = inverted_index.get_idf(term=term)
-            tf_idf = tf * idf
+            term = args.term
+            tf_idf = tf_idf_command(document_id, term, inverted_index, stop_words)
             print(f"TF-IDF score of '{term}' in document '{document_id}': {tf_idf:.2f}")
+        case "bm25idf":
+            term = args.term
+            bm25idf = bm25_idf_command(term, inverted_index, stop_words)
+            print(f"BM25 IDF score of '{term}': {bm25idf:.2f}")
         case "build":
             inverted_index.build()
             inverted_index.save()
@@ -199,8 +235,6 @@ def main() -> None:
                 inverted_index.load()
             except Exception as e:
                 print(f"{e}")
-
-    
 
 if __name__ == "__main__":
     main()
