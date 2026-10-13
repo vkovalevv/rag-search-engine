@@ -18,9 +18,12 @@ TF_CACHE = "cache/tf.pkl"
 stemmer = PorterStemmer()
 
 
-def remove_stop_words(query_tokens: list[str]):
-    with open(os.path.abspath(STOPWORDS_ADDRESS)) as f:
+def load_stop_words(file_path: str):
+    with open(os.path.abspath(file_path)) as f:
         stop_words = set(f.read().splitlines())
+    return stop_words
+
+def remove_stop_words(query_tokens: list[str], stop_words: list[str]):
     result_tokens = [] 
     for token in query_tokens:
         if token in stop_words:
@@ -29,18 +32,18 @@ def remove_stop_words(query_tokens: list[str]):
     return result_tokens
 
 
-def tokenize_text(text: str) -> list[str]:
+def tokenize_text(text: str, stop_words: list[str]) -> list[str]:
     text = text.lower()  # case sensitivity
     without_punctuation = text.translate(
         {ord(c): None for c in string.punctuation}
     )  # punctuation
     tokens_without_punctuation = without_punctuation.split()  # tokenization
-    tokens_without_stopw = remove_stop_words(tokens_without_punctuation)
+    tokens_without_stopw = remove_stop_words(tokens_without_punctuation, stop_words)
     tokens = [stemmer.stem(token) for token in tokens_without_stopw]
     return tokens
 
-def tokenize_term(term: str) -> str:
-    token_term = tokenize_text(term)
+def tokenize_term(term: str, stop_words: list[str]) -> str:
+    token_term = tokenize_text(term, stop_words)
     if len(token_term) != 1:
         raise ValueError
     return token_term[0]
@@ -59,13 +62,14 @@ def load_movies(file_path: str):
 
 
 class InvertedIndex:
-    def __init__(self) -> None:
+    def __init__(self, stop_words: set[str]) -> None:
         self.index: dict[str, set[int]] = defaultdict(set)
         self.docmap: dict[int, dict] = {}
         self.term_frequencies: dict[int, Counter] = {}
+        self.stop_words = stop_words
 
     def __add_document(self, doc_id, text) -> None:
-        tokens = tokenize_text(text)
+        tokens = tokenize_text(text, self.stop_words)
         document_tf = Counter()
 
         for token in tokens:
@@ -129,15 +133,17 @@ def main() -> None:
     idf_parser.add_argument("term", type=str)
 
     movies = load_movies(MOVIE_ADDRESS)
+    stop_words = load_stop_words(STOPWORDS_ADDRESS)
 
-    inverted_index = InvertedIndex()
+    inverted_index = InvertedIndex(stop_words=stop_words)
     args = parser.parse_args()
+
     match args.command:
         case "search":
             query = args.query
             print(f"Searching for: {query}")
 
-            query_tokens = tokenize_text(query)
+            query_tokens = tokenize_text(query, stop_words)
 
             result = []
             inverted_index.load()
@@ -156,12 +162,12 @@ def main() -> None:
         case "tf":
             inverted_index.load()
             document_id = args.document_id
-            term = tokenize_term(args.term)
+            term = tokenize_term(args.term, stop_words)
             term_freq = inverted_index.get_tf(document_id, term)
             print(f"{term_freq}")
         case "idf":
             inverted_index.load()
-            term = tokenize_term(args.term)
+            term = tokenize_term(args.term, stop_words)
             total_doc_count = len(inverted_index.docmap)
             print(total_doc_count)
             term_match_doc_count = len(inverted_index.get_documents(term))
@@ -177,8 +183,7 @@ def main() -> None:
             except Exception as e:
                 print(f"{e}")
 
-        
-
+    
 
 if __name__ == "__main__":
     main()
