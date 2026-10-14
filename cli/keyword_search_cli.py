@@ -1,146 +1,52 @@
 import argparse
-import json
-import os
-import string
 import math
+import string
 
-from pickle import dump, load
-from collections import defaultdict, Counter
-from nltk.stem import PorterStemmer
+from config import settings
+from lib.keyword_search import (
+    BM25_B,
+    BM25_K1,
+    InvertedIndex,
+    load_movies,
+    load_stop_words,
+    tokenize_term,
+    tokenize_text,
+)
 
-MOVIE_ADDRESS = "data/movies.json"
-STOPWORDS_ADDRESS = "data/stopwords.txt"
-INDEX_CACHE = "cache/index.pkl"
-DOCMAP_CACHE = "cache/docmap.pkl"
-TF_CACHE = "cache/tf.pkl"
+# DATA_DIR = "/data"
+MOVIE_ADDRESS = settings.MOVIE_ADDRESS
+STOPWORDS_ADDRESS = settings.STOPWORDS_ADDRESS
 
-
-stemmer = PorterStemmer()
-
-
-def load_stop_words(file_path: str):
-    with open(os.path.abspath(file_path)) as f:
-        stop_words = set(f.read().splitlines())
-    return stop_words
-
-def remove_stop_words(query_tokens: list[str], stop_words: list[str]):
-    result_tokens = [] 
-    for token in query_tokens:
-        if token in stop_words:
-            continue
-        result_tokens.append(token)
-    return result_tokens
+# CACHE_DIR = "/cache"
+INDEX_CACHE = settings.INDEX_CACHE
+DOCMAP_CACHE = settings.DOCMAP_CACHE
+TF_CACHE = settings.TF_CACHE
+DOCLENGTHS_CACHE = settings.DOCLENGTHS_CACHE
 
 
-def tokenize_text(text: str, stop_words: list[str]) -> list[str]:
-    text = text.lower()  # case sensitivity
-    without_punctuation = text.translate(
-        {ord(c): None for c in string.punctuation}
-    )  # punctuation
-    tokens_without_punctuation = without_punctuation.split()  # tokenization
-    tokens_without_stopw = remove_stop_words(tokens_without_punctuation, stop_words)
-    tokens = [stemmer.stem(token) for token in tokens_without_stopw]
-    return tokens
-
-def tokenize_term(term: str, stop_words: list[str]) -> str:
-    token_term = tokenize_text(term, stop_words)
-    if len(token_term) != 1:
-        raise ValueError
-    return token_term[0]
-
-def tokens_match(title_tokens: list[str], query_tokens: list[str]) -> bool:
-    for query_token in query_tokens:
-        for title_token in title_tokens:
-            if query_token in title_token:
-                return True
-    return False
-
-def load_movies(file_path: str):
-    with open(os.path.abspath(file_path)) as f:
-        movies = json.load(f)["movies"]
-    return movies
-
-
-class InvertedIndex:
-    def __init__(self, stop_words: set[str]) -> None:
-        self.index: dict[str, set[int]] = defaultdict(set)
-        self.docmap: dict[int, dict] = {}
-        self.term_frequencies: dict[int, Counter] = {}
-        self.stop_words = stop_words
-
-    def __add_document(self, doc_id, text) -> None:
-        tokens = tokenize_text(text, self.stop_words)
-        document_tf = Counter()
-
-        for token in tokens:
-            self.index[token].add(doc_id)
-            document_tf[token] += 1
-
-        self.term_frequencies[doc_id] = document_tf
-
-    def get_documents(self, term):
-        return sorted(self.index[term])
-
-    def build(self):
-        movies = load_movies(MOVIE_ADDRESS)
-        for movie in movies:
-            movie_id = movie["id"]
-            movie_text = movie["title"] + " " + movie["description"]
-            self.__add_document(movie_id, movie_text)
-            self.docmap[movie_id] = movie
-
-    def load(self):
-        try:
-            with open(os.path.abspath(INDEX_CACHE), mode="rb") as index_file:
-                self.index = load(index_file)
-
-            with open(os.path.abspath(DOCMAP_CACHE), mode="rb") as docmap_file:
-                self.docmap = load(docmap_file)
-
-            with open(os.path.abspath(TF_CACHE), mode="rb") as tf_file:
-                self.term_frequencies = load(tf_file)
-        except FileNotFoundError as e:
-            raise
-
-    def save(self):
-        with open(os.path.abspath(INDEX_CACHE), mode="wb") as index_file:
-            dump(self.index, index_file)
-
-        with open(os.path.abspath(DOCMAP_CACHE), mode="wb") as docmap_file:
-            dump(self.docmap, docmap_file)
-
-        with open(os.path.abspath(TF_CACHE), mode="wb") as tf_file:
-            dump(self.term_frequencies, tf_file)
-
-    def get_tf(self, doc_id:int, term: str) -> int:
-        return self.term_frequencies[doc_id].get(term,0)
-
-    def get_idf(self, term: str):
-        total_doc_count = len(self.docmap)
-        term_match_doc_count = len(self.get_documents(term))
-        return math.log((total_doc_count+1)/(term_match_doc_count+1))
-
-    def get_bm25_idf(self, term: str) -> float:
-        N = len(self.docmap)
-        df = len(self.get_documents(term))
-        bm_idf = math.log((N-df+0.5)/(df+0.5)+1)
-        return bm_idf
-
-def tf_command(document_id: int, term: str, inverted_index: InvertedIndex, stop_words: set[str]) -> float:
+def tf_command(
+    document_id: int, term: str, inverted_index: InvertedIndex, stop_words: set[str]
+) -> float:
     inverted_index.load()
     term = tokenize_term(term, stop_words)
     term_freq = inverted_index.get_tf(document_id, term)
     return term_freq
 
-def idf_command(term:str, inverted_index: InvertedIndex, stop_words: set[str]) -> float:
+
+def idf_command(
+    term: str, inverted_index: InvertedIndex, stop_words: set[str]
+) -> float:
     inverted_index.load()
     term = tokenize_term(term, stop_words)
     total_doc_count = len(inverted_index.docmap)
     term_match_doc_count = len(inverted_index.get_documents(term))
-    idf = math.log((total_doc_count+1)/(term_match_doc_count+1))
+    idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
     return idf
 
-def tf_idf_command(document_id: int, term:str, inverted_index: InvertedIndex, stop_words: set[str]) -> float:
+
+def tf_idf_command(
+    document_id: int, term: str, inverted_index: InvertedIndex, stop_words: set[str]
+) -> float:
     inverted_index.load()
     term = tokenize_term(term, stop_words)
     tf = inverted_index.get_tf(doc_id=document_id, term=term)
@@ -149,11 +55,35 @@ def tf_idf_command(document_id: int, term:str, inverted_index: InvertedIndex, st
     return tf_idf
 
 
-def bm25_idf_command(term:str, inverted_index: InvertedIndex, stop_words: set[str]) -> float: 
+def bm25_idf_command(
+    term: str, inverted_index: InvertedIndex, stop_words: set[str]
+) -> float:
     inverted_index.load()
     term = tokenize_term(term, stop_words)
     bm25idf = inverted_index.get_bm25_idf(term)
     return bm25idf
+
+
+def bm25_tf_command(
+    document_id: int,
+    term: str,
+    inverted_index: InvertedIndex,
+    stop_words: set[str],
+    b: float = BM25_B,
+) -> float:
+    inverted_index.load()
+    term = tokenize_term(term, stop_words)
+    bm25_tf = inverted_index.get_bm25_tf(document_id, term)
+    return bm25_tf
+
+def bm25search_command(
+    query: str,
+    inverted_index: InvertedIndex, 
+    limit,
+):  
+    inverted_index.load()
+    bm25search_result = inverted_index.bm25_search(query,limit)
+    return bm25search_result
 
 
 def main() -> None:
@@ -178,13 +108,33 @@ def main() -> None:
     tfidf_parser.add_argument("term", type=str)
 
     bm25_idf_parser = subparsers.add_parser(
-    "bm25idf", help="Get BM25 IDF score for a given term")
-    bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
+        "bm25idf", help="Get BM25 IDF score for a given term"
+    )
+    bm25_idf_parser.add_argument(
+        "term", type=str, help="Term to get BM25 IDF score for"
+    )
+
+    bm25_tf_parser = subparsers.add_parser(
+        "bm25tf", help="Get BM25 TF score for a given document ID and term"
+    )
+    bm25_tf_parser.add_argument("document_id", type=int, help="Document ID")
+    bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
+    bm25_tf_parser.add_argument(
+        "k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter"
+    )
+    bm25_tf_parser.add_argument(
+        "b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 b parameter"
+    )
+
+    bm25search_parser = subparsers.add_parser(
+    "bm25search", help="Search movies using full BM25 scoring")
+    bm25search_parser.add_argument("query", type=str, help="Search query")
+    bm25search_parser.add_argument("--limit", type=int, help="limit of result", default=5)
 
     movies = load_movies(MOVIE_ADDRESS)
     stop_words = load_stop_words(STOPWORDS_ADDRESS)
 
-    inverted_index = InvertedIndex(stop_words=stop_words)
+    inverted_index = InvertedIndex(stop_words, MOVIE_ADDRESS, INDEX_CACHE, DOCMAP_CACHE, TF_CACHE, DOCLENGTHS_CACHE)
     args = parser.parse_args()
 
     match args.command:
@@ -212,7 +162,7 @@ def main() -> None:
             inverted_index.load()
             document_id = args.document_id
             term = args.term
-            term_freq = tf_command(document_id,term, inverted_index, stop_words)
+            term_freq = tf_command(document_id, term, inverted_index, stop_words)
             print(f"{term_freq}")
         case "idf":
             term = args.term
@@ -227,6 +177,20 @@ def main() -> None:
             term = args.term
             bm25idf = bm25_idf_command(term, inverted_index, stop_words)
             print(f"BM25 IDF score of '{term}': {bm25idf:.2f}")
+        case "bm25tf":
+            document_id = args.document_id
+            term = args.term
+            bm25tf = bm25_tf_command(document_id, term, inverted_index, stop_words)
+            print(
+                f"BM25 TF score of '{term}' in document '{document_id}': {bm25tf:.2f}"
+            )
+        case "bm25search":
+            query = args.query
+            limit = args.limit
+            bm25search_result = bm25search_command(query, inverted_index, limit)
+            for index, (document_id, score) in enumerate(bm25search_result, start=1):
+                title = inverted_index.docmap[document_id]["title"]
+                print(f"{index}. ({document_id}) {title} - Score: {score:.2f}")
         case "build":
             inverted_index.build()
             inverted_index.save()
@@ -235,6 +199,7 @@ def main() -> None:
                 inverted_index.load()
             except Exception as e:
                 print(f"{e}")
+
 
 if __name__ == "__main__":
     main()
