@@ -1,3 +1,4 @@
+import re
 import os
 import json
 from sentence_transformers import SentenceTransformer
@@ -137,33 +138,46 @@ def chunking(text: str, size: int, overlap:int):
     words = text.split()
     first_ptr, second_ptr = 0, size
     chunks = []
-    previous_chunk = None
-    chunk_overlap = ""
 
-    while second_ptr < len(words):
-        chunk = None
-        chunk_overlap = ""
+    while second_ptr< len(words):
+        chunk = words[first_ptr:second_ptr]
 
-        if previous_chunk:
-            if overlap:
-                chunk_overlap = " ".join(previous_chunk[-overlap:]) + " "
-            chunk = words[first_ptr:second_ptr-overlap]
-        else:
-            chunk = words[first_ptr:second_ptr]
-
-        chunks.append(chunk_overlap + " ".join(chunk))
-        previous_chunk = [str(item) for item in chunk]
-        first_ptr += size
-        second_ptr += size
+        chunks.append(" ".join(chunk))
+        first_ptr += size - overlap
+        second_ptr += size - overlap
 
     remainder = " ".join(words[first_ptr:])
     
-    if overlap:
-        remainder = " ".join(previous_chunk[-overlap:]) + " " + remainder
-
     chunks.append(remainder)
 
     print(f"Chunking {len(text)} characters")
+    for index, chunk in enumerate(chunks, start=1):
+        print(f"{index}. {chunk}")
+
+    return chunks
+
+def semantic_chunking(text:str, max_chunk_size: int, overlap:int):
+    split_result = re.split(r"(?<=[.!?])\s+", text)
+    first_ptr, second_ptr = 0, max_chunk_size
+    chunks = []
+    previous_chunk = None
+    chunk_overlap = ""
+
+    while second_ptr < len(split_result):
+        chunk = None
+  
+        chunk = split_result[first_ptr:second_ptr]
+
+        chunks.append(" ".join(chunk))
+
+        first_ptr += max_chunk_size - overlap
+        second_ptr += max_chunk_size - overlap
+
+    remainder = " ".join(split_result[first_ptr:])
+
+    chunks.append(remainder)
+
+    print(f"Semantically chunking {len(text)} characters")
     for index, chunk in enumerate(chunks, start=1):
         print(f"{index}. {chunk}")
 
