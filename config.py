@@ -14,8 +14,11 @@ class Settings(BaseSettings):
     DOCMAP_CACHE: str = "cache/docmap.pkl"
     TF_CACHE: str = "cache/tf.pkl"
     DOCLENGTHS_CACHE: str = "cache/doc_lengths.pkl"
+    EMBEDDINGS_CACHE: str = "cache/movie_embeddings.py"
 
     BM25_K1: float = 1.5
     BM25_B: float = 0.75
+
+    TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
 
 settings = Settings()
