@@ -1,5 +1,16 @@
 import argparse
-from lib.semantic_search import chunking, search_command, semantic_chunking, verify_model, embed_text, verify_embeddings, embed_query_text
+from lib.semantic_search import (
+    chunking,
+    embed_chunks_command,
+    search_chunked_command,
+    search_command,
+    semantic_chunk,
+    verify_model,
+    embed_text,
+    verify_embeddings,
+    embed_query_text,
+)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Semantic Search CLI")
@@ -21,13 +32,20 @@ def main() -> None:
 
     chunk_parser = subparsers.add_parser("chunk")
     chunk_parser.add_argument("text", type=str)
-    chunk_parser.add_argument("--chunk-size", type=int,default=200)
+    chunk_parser.add_argument("--chunk-size", type=int, default=200)
     chunk_parser.add_argument("--overlap", type=int)
 
     semantic_chunk_parser = subparsers.add_parser("semantic_chunk")
     semantic_chunk_parser.add_argument("text", type=str)
     semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4)
     semantic_chunk_parser.add_argument("--overlap", type=int, default=0)
+
+    embed_chunk_parser = subparsers.add_parser("embed_chunks")
+
+    search_chunked_parser = subparsers.add_parser("search_chunked")
+    search_chunked_parser.add_argument("query", type=str)
+    search_chunked_parser.add_argument("--limit", type=int, default=5)
+
     args = parser.parse_args()
 
     match args.command:
@@ -52,11 +70,20 @@ def main() -> None:
             text = args.text
             max_chunk_size = args.max_chunk_size
             overlap = args.overlap
-            semantic_chunking(text, max_chunk_size, overlap)
+            results = semantic_chunk(text, max_chunk_size, overlap)
+            for index, result in enumerate(results, start=1):
+                print(f"{index}. {result}")
+        case "embed_chunks":
+            embed_chunks_command()
+        case "search_chunked":
+            query = args.query
+            limit = args.limit
+            search_chunked_command(query, limit)
         case "search":
             query = args.query
             limit = args.limit
             search_command(query, limit)
+
 
 if __name__ == "__main__":
     main()

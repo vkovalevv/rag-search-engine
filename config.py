@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     DOCMAP_CACHE: str = "cache/docmap.pkl"
     TF_CACHE: str = "cache/tf.pkl"
     DOCLENGTHS_CACHE: str = "cache/doc_lengths.pkl"
-    EMBEDDINGS_CACHE: str = "cache/movie_embeddings.py"
+    EMBEDDINGS_CACHE: str = "cache/movie_embeddings.npy"
+    CHUNK_METADATA_CACHE:str = "cache/chunk_metadata.json"
 
     BM25_K1: float = 1.5
     BM25_B: float = 0.75
