@@ -187,7 +187,6 @@ def semantic_chunk(text: str, max_chunk_size: int, overlap: int):
     if not text:
         return []
 
-
     split_result = re.split(r"(?<=[.!?])\s+", text)
     
     if len(split_result) == 1:

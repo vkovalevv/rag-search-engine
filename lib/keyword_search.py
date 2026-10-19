@@ -68,7 +68,7 @@ def load_movies(file_path: str):
 class InvertedIndex:
     def __init__(
         self,
-        stop_words: set[str],
+        stop_words_file: str,
         data_file: str,
         index_cache_f: str,
         docmap_cache_f: str,
@@ -80,7 +80,7 @@ class InvertedIndex:
         self.term_frequencies: dict[int, Counter] = {}
         self.doc_lengths: dict[int, int] = {}
 
-        self.stop_words = stop_words
+        self.stop_words = load_stop_words(stop_words_file)
 
         self.data_file = data_file
         self.index_cache_f = index_cache_f

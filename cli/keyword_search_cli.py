@@ -76,13 +76,14 @@ def bm25_tf_command(
     bm25_tf = inverted_index.get_bm25_tf(document_id, term)
     return bm25_tf
 
+
 def bm25search_command(
     query: str,
-    inverted_index: InvertedIndex, 
+    inverted_index: InvertedIndex,
     limit,
-):  
+):
     inverted_index.load()
-    bm25search_result = inverted_index.bm25_search(query,limit)
+    bm25search_result = inverted_index.bm25_search(query, limit)
     return bm25search_result
 
 
@@ -127,14 +128,24 @@ def main() -> None:
     )
 
     bm25search_parser = subparsers.add_parser(
-    "bm25search", help="Search movies using full BM25 scoring")
+        "bm25search", help="Search movies using full BM25 scoring"
+    )
     bm25search_parser.add_argument("query", type=str, help="Search query")
-    bm25search_parser.add_argument("--limit", type=int, help="limit of result", default=5)
+    bm25search_parser.add_argument(
+        "--limit", type=int, help="limit of result", default=5
+    )
 
     movies = load_movies(MOVIE_ADDRESS)
     stop_words = load_stop_words(STOPWORDS_ADDRESS)
 
-    inverted_index = InvertedIndex(stop_words, MOVIE_ADDRESS, INDEX_CACHE, DOCMAP_CACHE, TF_CACHE, DOCLENGTHS_CACHE)
+    inverted_index = InvertedIndex(
+        STOPWORDS_ADDRESS,
+        MOVIE_ADDRESS,
+        INDEX_CACHE,
+        DOCMAP_CACHE,
+        TF_CACHE,
+        DOCLENGTHS_CACHE,
+    )
     args = parser.parse_args()
 
     match args.command:
