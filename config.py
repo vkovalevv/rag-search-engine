@@ -21,5 +21,5 @@ class Settings(BaseSettings):
     BM25_B: float = 0.75
 
     TRANSFORMER_MODEL: str = "all-MiniLM-L6-v2"
-
+    OPENROUTER_API_KEY: str
 settings = Settings()
